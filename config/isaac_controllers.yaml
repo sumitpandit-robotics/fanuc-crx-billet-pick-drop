@@ -1,0 +1,27 @@
+# hw:=isaac overrides for fanuc_hardware_interface/config/ros2_controllers.yaml.
+# Node-name keys beat the /** wildcard keys in the FANUC file.
+controller_manager:
+  ros__parameters:
+    update_rate: 120  # Hz; Isaac publishes joint states once per physics step
+    joint_trajectory_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+joint_trajectory_controller:
+  ros__parameters:
+    # Position + velocity: Isaac's joint drive tracks both, like a servo with feed-forward.
+    command_interfaces:
+      - position
+      - velocity
+    # FANUC's 0.05 rad goal tolerance suits the real controller's own fine positioning;
+    # in simulation it let "goal reached" fire while the arm was still millimetres off.
+    # Path tolerance stays at FANUC's 0.25 rad: the ROS <-> Isaac loop adds ~24 ms of delay,
+    # which shows up as velocity x 24 ms of apparent error on fast wrist moves.
+    constraints:
+      stopped_velocity_tolerance: 0.01
+      goal_time: 1.0
+      J1: {goal: 0.002, trajectory: 0.25}
+      J2: {goal: 0.002, trajectory: 0.25}
+      J3: {goal: 0.002, trajectory: 0.25}
+      J4: {goal: 0.002, trajectory: 0.25}
+      J5: {goal: 0.002, trajectory: 0.25}
+      J6: {goal: 0.002, trajectory: 0.25}

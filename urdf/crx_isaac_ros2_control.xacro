@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<!--
+  ros2_control for Isaac Sim: same crx_control macro signature as fanuc_hardware_interface's
+  mock/physical macros, but joints only (no FANUC GPIO/status interfaces). TopicBasedSystem
+  publishes position commands to Isaac and reads Isaac's joint states back.
+-->
+<robot xmlns:xacro="http://wiki.ros.org/xacro">
+  <xacro:macro name="crx_joint" params="name">
+    <joint name="${name}">
+      <command_interface name="position"/>
+      <!-- velocity feed-forward: without it Isaac's drive damping brakes every motion -->
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:macro name="crx_control" params="name prefix=''">
+    <ros2_control name="${name}" type="system">
+      <hardware>
+        <plugin>topic_based_ros2_control/TopicBasedSystem</plugin>
+        <param name="joint_commands_topic">/isaac_joint_commands</param>
+        <param name="joint_states_topic">/isaac_joint_states</param>
+        <param name="sum_wrapped_joint_states">true</param>
+      </hardware>
+      <xacro:crx_joint name="${prefix}J1"/>
+      <xacro:crx_joint name="${prefix}J2"/>
+      <xacro:crx_joint name="${prefix}J3"/>
+      <xacro:crx_joint name="${prefix}J4"/>
+      <xacro:crx_joint name="${prefix}J5"/>
+      <xacro:crx_joint name="${prefix}J6"/>
+    </ros2_control>
+  </xacro:macro>
+</robot>
