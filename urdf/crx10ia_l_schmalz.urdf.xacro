@@ -27,13 +27,24 @@
   <xacro:arg name="robot_xyz" default="-0.65 0 0.959"/>
   <xacro:arg name="robot_rpy" default="0 0 0"/>
 
+  <!-- Hardware: mock | isaac | real. Empty = follow use_mock (official driver argument). -->
+  <xacro:arg name="hw" default=""/>
+  <xacro:property name="hw" value="$(arg hw)"/>
+  <xacro:if value="${hw == ''}">
+    <xacro:if value="$(arg use_mock)"><xacro:property name="hw" value="mock"/></xacro:if>
+    <xacro:unless value="$(arg use_mock)"><xacro:property name="hw" value="real"/></xacro:unless>
+  </xacro:if>
+
   <xacro:include filename="$(find fanuc_crx_description)/urdf/crx10ia_l_urdf_macro.xacro"/>
-  <xacro:if value="$(arg use_mock)">
+  <xacro:if value="${hw == 'mock'}">
     <xacro:include filename="$(find fanuc_hardware_interface)/config/crx_mock_ros2_control_macro.xacro"/>
   </xacro:if>
-  <xacro:unless value="$(arg use_mock)">
+  <xacro:if value="${hw == 'isaac'}">
+    <xacro:include filename="$(find fanuc_pick_drop)/urdf/crx_isaac_ros2_control.xacro"/>
+  </xacro:if>
+  <xacro:if value="${hw == 'real'}">
     <xacro:include filename="$(find fanuc_hardware_interface)/config/crx_physical_ros2_control_macro.xacro"/>
-  </xacro:unless>
+  </xacro:if>
   <xacro:include filename="$(find moveit_resources_fanuc_moveit_config)/config/schmalz_eoat.urdf.xacro"/>
 
   <link name="world"/>

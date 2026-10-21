@@ -1,6 +1,7 @@
 """Run the billet bin-picking task against a running sim.launch.py (or real robot) stack.
 
     ros2 launch fanuc_pick_drop pick_drop.launch.py billets:=5 execute:=false
+    ros2 launch fanuc_pick_drop pick_drop.launch.py use_sim_time:=true   # with hw:=isaac
 """
 import os
 import sys
@@ -32,6 +33,7 @@ def generate_launch_description():
             {
                 "billets": ParameterValue(LaunchConfiguration("billets"), value_type=int),
                 "execute": ParameterValue(LaunchConfiguration("execute"), value_type=bool),
+                "use_sim_time": ParameterValue(LaunchConfiguration("use_sim_time"), value_type=bool),
             },
         ],
     )
@@ -39,6 +41,7 @@ def generate_launch_description():
         [
             DeclareLaunchArgument("billets", default_value="5", description="How many billets to move"),
             DeclareLaunchArgument("execute", default_value="true", description="false = plan only"),
+            DeclareLaunchArgument("use_sim_time", default_value="false", description="true with sim.launch.py hw:=isaac"),
             pick_drop,
         ]
     )

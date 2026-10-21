@@ -1,7 +1,7 @@
 # fanuc_pick_drop: CRX-10iA/L billet bin-picking
 
 Learning guide to the project: big picture, then each layer and its files, then
-hands-on exercises.
+hands-on exercises, and the Isaac Sim physics version (section 7).
 
 **Quick start** (two terminals):
 ```bash
@@ -17,6 +17,9 @@ ros2 launch fanuc_pick_drop pick_drop.launch.py           # terminal 2 (billets:
   `fanuc_hardware_interface`, `fanuc_moveit_config`
 
 Build: clone into `ws_moveit2/src`, then `colcon build --symlink-install --packages-select fanuc_pick_drop`.
+- For `hw:=isaac` only: Isaac Sim 6.0 (pip install, e.g. `~/isaacsim-env-6`) and
+  `topic_based_ros2_control` (`sudo apt install ros-humble-topic-based-ros2-control`, or build
+  tag 0.2.0 from source in the workspace). See section 7.
 
 ## 1. The big picture (read this first)
 
@@ -62,7 +65,12 @@ fanuc_pick_drop/
 ├── launch/crx_config.py                one place that builds the MoveIt config
 ├── launch/sim.launch.py                layers 1-3 + RViz
 ├── launch/pick_drop.launch.py          layer 4 (the task)
-└── src/pick_drop.cpp                   the task logic
+├── src/pick_drop.cpp                   the task logic
+├── src/magnet_bridge.cpp               hw:=isaac: planning-scene attach/detach -> /magnet
+├── urdf/crx_isaac_ros2_control.xacro   hw:=isaac: ros2_control over Isaac joint topics
+├── config/isaac_controllers.yaml       hw:=isaac: controller overrides
+├── isaac/billet_cell.py                Isaac Sim 6 cell: robot, pallets, physical billets, magnet
+└── scripts/run_isaac.sh                starts billet_cell.py with Isaac's ROS 2 libraries
 ```
 
 ## 3. Layer 0: the robot model
@@ -189,7 +197,63 @@ Setup for each: two terminals, `source ~/ws_fanuc/install/setup.bash; export ROS
 7. **Add a 6th billet:** append an id plus xy pairs to `billet_ids`, `billet_xy` and `drop_xy`, making sure it fits in the pallet.
 8. **Regenerate the collision matrix** with `collisions_updater` and diff it against the SRDF.
 
-## 7. Where the project goes next
+## 7. Isaac Sim: physics and a simulated magnet
+
+`hw:=isaac` swaps the mock hardware (layer 1) for Isaac Sim. MoveIt, MTC and `pick_drop.cpp`
+are unchanged: Isaac only replaces "the robot". The billets become real rigid bodies (steel,
+3.1 kg) that fall, roll and get pushed, so this is where cell problems show up that the mock hides.
+
+```
+pick_drop (MTC) -> move_group -> joint_trajectory_controller -> TopicBasedSystem (ros2_control)
+                       |                                     /isaac_joint_commands | ^ /isaac_joint_states
+                       v                                                           v |
+         planning scene attach/detach -> magnet_bridge -> /magnet ------------> Isaac Sim (+ /clock)
+```
+
+Run (three terminals, same ROS_DOMAIN_ID / ROS_LOCALHOST_ONLY in all of them):
+```bash
+# 1. Isaac (first start imports the URDF to USD, ~2 min; cached in ~/.cache/fanuc_pick_drop)
+export ROS_LOCALHOST_ONLY=1
+ros2 run fanuc_pick_drop run_isaac.sh            # or: .../scripts/run_isaac.sh --headless
+# 2. ROS side, once Isaac prints "[billet_cell] running"
+source ~/ws_fanuc/install/setup.bash && export ROS_LOCALHOST_ONLY=1
+ros2 launch fanuc_pick_drop sim.launch.py hw:=isaac
+# 3. the task
+ros2 launch fanuc_pick_drop pick_drop.launch.py use_sim_time:=true
+```
+`run_isaac.sh --settle-test 10` builds the cell, simulates 10 s without ROS and reports any billet
+that moved: a quick check after editing `pick_drop.yaml`.
+
+What the Isaac terminal tells you (read it, it's the point of the physical sim):
+- `Magnet ON: ... pulled in by x .., y .. mm`: how far the billet was from where MoveIt expected.
+- `<billet> moved N mm on its own`: a billet MoveIt thinks is static has moved.
+- `<billet> resting at (...)`: where a dropped billet ended up; compare with `drop_xy`.
+- `contact: robot <link> <-> <object>`: physics found a contact MoveIt didn't plan for.
+
+### 7a. The magnet model
+`magnet_bridge` polls move_group's planning scene and publishes the id of the object attached to
+`tcp_link` (or `""`). Isaac then welds the billet to the gripper with a fixed joint. Like a real
+magnet it only grabs a billet that's close: within the capture range (`CAPTURE_*` in
+`billet_cell.py`, placeholders to measure on the real gripper) the billet is pulled flush and
+centred under the TCP; farther away nothing is picked and the error says why. On the real robot,
+`magnet_bridge` is where the FANUC DO for the magnet goes.
+
+### 7b. Lessons from bringing it up
+| Symptom | Real cause | Fix / lesson |
+|---|---|---|
+| Arm lags 20-120 mrad behind the trajectory | Only position was commanded, so the drive's damping braked every motion and hit the URDF effort limit | Command position **and velocity** (feed-forward), like a real servo |
+| `/clock` at 69 Hz with 120 Hz physics | Isaac ran 2 physics steps per app frame | `RenderingManager.set_dt(dt)`: one step per frame |
+| "Goal reached" while the arm was still off | FANUC's 0.05 rad goal tolerance is for the real controller | 0.002 rad goal tolerance in `isaac_controllers.yaml` |
+| JTC reports 25+ mrad error but the path is right | The ROS<->Isaac loop adds ~24 ms; a pure delay doesn't change the path | Keep FANUC's 0.25 rad path tolerance |
+| Billets roll across the pallet | PhysX has no rolling resistance | Angular damping on the billets |
+| Billets next to each other drift 3-11 mm when one is picked | The drop/pick slots touch end-to-end (zero gap), so lifting one drags its neighbour | Capture range absorbs it in sim; for the real cell, consider a gap between slots |
+| `failed to create domain` / spawners hang | CycloneDDS allows ~10 participants per domain on localhost | Raise `MaxAutoParticipantIndex` in `CYCLONEDDS_URI` if you add nodes |
+
+Open question: a billet still creeps a few mm while the gripper hovers 1 mm above it, even though
+the collision shapes don't touch. It looks like a PhysX contact-offset effect; the capture range
+covers it, but it isn't fully explained yet.
+
+## 8. Where the project goes next
 1. Magnet I/O on the real robot: FANUC GPIO DO via `fanuc_gpio_controller` (which DO number?).
 2. TCP calibration on the real CRX → update `tcp_xyz`/`tcp_rpy` in `schmalz_eoat.urdf.xacro`.
 3. Billet poses from the Mech-Mind camera instead of `pick_drop.yaml`.
