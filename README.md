@@ -247,6 +247,7 @@ centred under the TCP; farther away nothing is picked and the error says why. On
 | JTC reports 25+ mrad error but the path is right | The ROS<->Isaac loop adds ~24 ms; a pure delay doesn't change the path | Keep FANUC's 0.25 rad path tolerance |
 | Billets roll across the pallet | PhysX has no rolling resistance | Angular damping on the billets |
 | Billets next to each other drift 3-11 mm when one is picked | The drop/pick slots touch end-to-end (zero gap), so lifting one drags its neighbour | Capture range absorbs it in sim; for the real cell, consider a gap between slots |
+| `ros2_control_node` dies: `TopicBasedSystem ... does not exist` | The terminal was opened before `topic_based_ros2_control` was built/installed, so its environment doesn't list it | Open a new terminal and source `ws_fanuc`; `sim.launch.py` now says so instead of hanging |
 | `failed to create domain` / spawners hang | CycloneDDS allows ~10 participants per domain on localhost | Raise `MaxAutoParticipantIndex` in `CYCLONEDDS_URI` if you add nodes |
 
 Open question: a billet still creeps a few mm while the gripper hovers 1 mm above it, even though

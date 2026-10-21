@@ -12,7 +12,7 @@ Needs ws_fanuc sourced:  source ~/ws_fanuc/install/setup.bash
 import os
 import sys
 
-from ament_index_python.packages import get_package_share_directory
+from ament_index_python.packages import PackageNotFoundError, get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.conditions import IfCondition
@@ -28,6 +28,16 @@ from crx_config import crx_moveit_config  # noqa: E402
 def launch_setup(context):
     hw = LaunchConfiguration("hw").perform(context)
     isaac = hw == "isaac"
+    if isaac:
+        # Without it ros2_control_node aborts on a pluginlib error and the spawners just hang.
+        try:
+            get_package_share_directory("topic_based_ros2_control")
+        except PackageNotFoundError:
+            raise RuntimeError(
+                "hw:=isaac needs topic_based_ros2_control, which this shell can't see. "
+                "Open a new terminal and source ~/ws_fanuc/install/setup.bash "
+                "(or: sudo apt install ros-humble-topic-based-ros2-control)."
+            ) from None
     moveit_config = crx_moveit_config(hw=hw)
     share = get_package_share_directory("fanuc_pick_drop")
     rviz_config = os.path.join(share, "config", "pick_drop.rviz")
