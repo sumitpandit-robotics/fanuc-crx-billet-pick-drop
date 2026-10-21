@@ -1,0 +1,55 @@
+<?xml version="1.0"?>
+<!--
+  FANUC CRX-10iA/L with the Schmalz SGM-HP magnetic EOAT, mounted on the billet-cell table.
+
+  Same arguments as fanuc_hardware_interface/robot/crx10ia_l.urdf.xacro (official FANUC
+  driver), so one description serves both simulation (use_mock:=true) and the real robot.
+
+  Frames:
+    world -> base_link (robot_xyz/rpy) -> ... -> flange -> fanuc_flange (z out of the flange)
+      -> tool0 -> eoat_mount_link -> schmalz_gripper_link -> tcp_link + camera_link
+-->
+<robot name="crx10ia_l" xmlns:xacro="http://wiki.ros.org/xacro">
+
+  <!-- Official driver arguments -->
+  <xacro:arg name="robot_ip" default="192.168.1.100"/>
+  <xacro:arg name="rmi_port" default="16001"/>
+  <xacro:arg name="stream_motion_port" default="60015"/>
+  <xacro:arg name="gpio_configuration" default=""/>
+  <xacro:arg name="payload_schedule" default="1"/>
+  <xacro:arg name="out_cmd_interp_buff_target" default="8"/>
+  <xacro:arg name="force_sensor_type" default="1"/>
+  <xacro:arg name="use_mock" default="true"/>
+  <xacro:arg name="motion_control" default="1"/>
+  <xacro:arg name="encoding" default="UTF-8"/>
+
+  <!-- Robot mounting in the cell: on the table top (from modular_bin_pick_ws crx_workcell) -->
+  <xacro:arg name="robot_xyz" default="-0.65 0 0.959"/>
+  <xacro:arg name="robot_rpy" default="0 0 0"/>
+
+  <xacro:include filename="$(find fanuc_crx_description)/urdf/crx10ia_l_urdf_macro.xacro"/>
+  <xacro:if value="$(arg use_mock)">
+    <xacro:include filename="$(find fanuc_hardware_interface)/config/crx_mock_ros2_control_macro.xacro"/>
+  </xacro:if>
+  <xacro:unless value="$(arg use_mock)">
+    <xacro:include filename="$(find fanuc_hardware_interface)/config/crx_physical_ros2_control_macro.xacro"/>
+  </xacro:unless>
+  <xacro:include filename="$(find moveit_resources_fanuc_moveit_config)/config/schmalz_eoat.urdf.xacro"/>
+
+  <link name="world"/>
+  <link name="end_effector"/>
+  <xacro:crx10ia_l parent="world" child="end_effector" prefix="">
+    <origin xyz="$(arg robot_xyz)" rpy="$(arg robot_rpy)"/>
+  </xacro:crx10ia_l>
+
+  <!-- fanuc_flange is the CRX mounting face (z out of the flange), as in modular_bin_pick_ws -->
+  <link name="tool0"/>
+  <joint name="fanuc_flange-tool0" type="fixed">
+    <parent link="fanuc_flange"/>
+    <child link="tool0"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+  <xacro:schmalz_eoat parent="tool0"/>
+
+  <xacro:crx_control name="crx10ia_l" prefix=""/>
+</robot>

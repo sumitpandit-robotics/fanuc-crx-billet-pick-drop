@@ -1,0 +1,37 @@
+# Billet bin-picking cell. Values from modular_bin_pick_ws/src/bringup
+# (workcell_scene_node.py + pick_place_node.py). Metres, "world" frame.
+# Robot: FANUC CRX-10iA/L, base on the table at (-0.65, 0, 0.959): see urdf/crx10ia_l_schmalz.urdf.xacro.
+pick_drop:
+  ros__parameters:
+    # Table: final_pallet.stl is in mm; its top is at z = 0.959.
+    table_mesh: "package://fanuc_pick_drop/models/table.stl"
+    table_position: [-0.790, -0.761, -0.001]   # -1 mm so the robot base doesn't touch it
+
+    # Open-top pallets (crates): 600 x 400 x 150 mm, 8 mm walls, 10 mm floor
+    pallet_size: [0.600, 0.400, 0.150]         # X (length), Y (width), Z (height)
+    pallet_wall: 0.008
+    pallet_floor: 0.010
+    table_top_z: 0.959
+    pick_pallet_xy: [0.000, -0.500]
+    drop_pallet_xy: [0.000, 0.500]
+
+    # Billets: steel cylinders lying along world X
+    billet_length: 0.200
+    billet_radius: 0.025
+    billet_ids: ["pick_billet_01", "pick_billet_02", "pick_billet_03", "pick_billet_04", "pick_billet_05"]
+    # x,y pairs in the same order as billet_ids (2-1-2 pattern; drop slots mirrored)
+    billet_xy: [-0.150, -0.600,   0.050, -0.600,  -0.050, -0.500,  -0.150, -0.400,   0.050, -0.400]
+    drop_xy:   [-0.150,  0.400,   0.050,  0.400,  -0.050,  0.500,  -0.150,  0.600,   0.050,  0.600]
+
+    clearance: 0.002          # dropped billet is released this far above the pallet floor
+    grasp_standoff: 0.001     # pole face stops this far above the billet (magnet pulls it in)
+
+    # Straight-line moves (vertical). Pallet walls reach 0.090 m above a billet's top,
+    # so the loaded lift/lower must exceed that.
+    approach_min: 0.100       # empty gripper: approach / retreat
+    approach_max: 0.155
+    lift_min: 0.180           # billet attached: lift / lower
+    lift_max: 0.255
+
+    planning_attempts: 5      # MTC solutions to search per billet before picking the best
+    # billets and execute are launch arguments: pick_drop.launch.py billets:=5 execute:=false
